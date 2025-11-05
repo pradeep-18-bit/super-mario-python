@@ -1,7 +1,7 @@
 # noVNC-enabled container for the Python (Pygame) Mario game
 FROM python:3.11-slim
 
-# Install OS deps
+# Install system dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xvfb x11vnc xauth novnc websockify fluxbox \
     libgl1 libglib2.0-0 build-essential gfortran \
@@ -12,6 +12,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 WORKDIR /app
 COPY . /app
 
+# Upgrade pip and install dependencies safely
 RUN pip install --upgrade pip setuptools wheel && \
     if [ -f requirements.txt ]; then \
         sed -i 's/pygame==2.0.0.dev10/pygame==2.5.2/g' requirements.txt && \
@@ -21,11 +22,15 @@ RUN pip install --upgrade pip setuptools wheel && \
         pip install --no-cache-dir pygame==2.5.2 scipy==1.11.4; \
     fi
 
+# Expose noVNC port
 EXPOSE 6080
 
+# Environment variables for virtual display and dummy audio
 ENV VNC_PASSWORD="ChangeMe!"
 ENV DISPLAY=":0"
+ENV SDL_AUDIODRIVER=dummy
 
+# Launch sequence
 CMD bash -lc '\
   Xvfb :0 -screen 0 1024x768x24 & \
   sleep 2 && \
