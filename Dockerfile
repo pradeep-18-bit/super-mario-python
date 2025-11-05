@@ -1,9 +1,9 @@
 # noVNC-enabled container for the Python (Pygame) Mario game
 FROM python:3.11-slim
 
-# Install OS and X11/SDL deps
+# Install OS deps
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    xvfb x11vnc novnc websockify fluxbox \
+    xvfb x11vnc xauth novnc websockify fluxbox \
     libgl1 libglib2.0-0 build-essential gfortran \
     libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-mixer-2.0-0 libsdl2-ttf-2.0-0 \
     ca-certificates curl && \
@@ -12,9 +12,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 WORKDIR /app
 COPY . /app
 
-# Upgrade pip and patch bad requirements before install
 RUN pip install --upgrade pip setuptools wheel && \
-    # Auto-replace old/deprecated package versions
     if [ -f requirements.txt ]; then \
         sed -i 's/pygame==2.0.0.dev10/pygame==2.5.2/g' requirements.txt && \
         sed -i 's/scipy==1.4.1/scipy==1.11.4/g' requirements.txt && \
