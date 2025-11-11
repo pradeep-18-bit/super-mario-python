@@ -1,4 +1,4 @@
-# noVNC-enabled container for the Python (Pygame) Mario game
+# noVNC-enabled container for Python (Pygame) Mario game
 FROM python:3.11-slim
 
 # Install system dependencies
@@ -12,7 +12,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 WORKDIR /app
 COPY . /app
 
-# Upgrade pip and install dependencies safely
+# Upgrade pip and install dependencies
 RUN pip install --upgrade pip setuptools wheel && \
     if [ -f requirements.txt ]; then \
         sed -i 's/pygame==2.0.0.dev10/pygame==2.5.2/g' requirements.txt && \
@@ -22,20 +22,26 @@ RUN pip install --upgrade pip setuptools wheel && \
         pip install --no-cache-dir pygame==2.5.2 scipy==1.11.4; \
     fi
 
+# Symlink for noVNC web files
+RUN ln -s /usr/share/novnc /noVNC || true
+
 # Expose noVNC port
 EXPOSE 6080
 
-# Environment variables for virtual display and dummy audio
+# Environment variables
 ENV VNC_PASSWORD="ChangeMe!"
 ENV DISPLAY=":0"
 ENV SDL_AUDIODRIVER=dummy
 
-# Launch sequence
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:6080 || exit 1
+
+# Launch noVNC + Mario game
 CMD bash -lc '\
   Xvfb :0 -screen 0 1024x768x24 & \
-  sleep 2 && \
+  sleep 3 && \
   fluxbox & \
   x11vnc -display :0 -rfbport 5900 -forever -shared -passwd "$VNC_PASSWORD" -xkb -bg && \
-  websockify --web=/usr/share/novnc/ 6080 localhost:5900 & \
+  websockify --web=/noVNC 6080 localhost:5900 & \
   DISPLAY=:0 python main.py \
 '
