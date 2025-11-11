@@ -1,7 +1,9 @@
 # noVNC-enabled container for Python (Pygame) Mario game
 FROM python:3.11-slim
 
-# Install system dependencies
+# -----------------------------------------------------
+# 🧩 1. Install system dependencies
+# -----------------------------------------------------
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xvfb x11vnc xauth novnc websockify fluxbox \
     libgl1 libglib2.0-0 build-essential gfortran \
@@ -9,10 +11,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
+# -----------------------------------------------------
+# 🧩 2. Copy game files
+# -----------------------------------------------------
 WORKDIR /app
 COPY . /app
 
-# Upgrade pip and install dependencies
+# -----------------------------------------------------
+# 🧩 3. Upgrade pip and install Python dependencies
+# -----------------------------------------------------
 RUN pip install --upgrade pip setuptools wheel && \
     if [ -f requirements.txt ]; then \
         sed -i 's/pygame==2.0.0.dev10/pygame==2.5.2/g' requirements.txt && \
@@ -22,26 +29,47 @@ RUN pip install --upgrade pip setuptools wheel && \
         pip install --no-cache-dir pygame==2.5.2 scipy==1.11.4; \
     fi
 
-# Symlink for noVNC web files
+# -----------------------------------------------------
+# 🧩 4. noVNC path fix (ensure websockify web dir exists)
+# -----------------------------------------------------
 RUN ln -s /usr/share/novnc /noVNC || true
 
-# Expose noVNC port
+# -----------------------------------------------------
+# 🧩 5. Environment configuration
+# -----------------------------------------------------
+ENV DISPLAY=:0
+ENV VNC_PASSWORD="ChangeMe!"
+ENV SDL_AUDIODRIVER=dummy
+ENV SDL_VIDEODRIVER=x11
+ENV SDL_NOMOUSE=1
+ENV SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR=0
+
+# -----------------------------------------------------
+# 🧩 6. Expose noVNC web port
+# -----------------------------------------------------
 EXPOSE 6080
 
-# Environment variables
-ENV VNC_PASSWORD="ChangeMe!"
-ENV DISPLAY=":0"
-ENV SDL_AUDIODRIVER=dummy
+# -----------------------------------------------------
+# 🧩 7. Health check (container considered healthy if websockify is up)
+# -----------------------------------------------------
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s CMD curl -f http://localhost:6080 || exit 1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:6080 || exit 1
-
-# Launch noVNC + Mario game
+# -----------------------------------------------------
+# 🧩 8. Launch everything in the right order
+# -----------------------------------------------------
 CMD bash -lc '\
+  echo "🎮 Starting Super Mario Pygame with noVNC..." && \
   Xvfb :0 -screen 0 1024x768x24 & \
-  sleep 3 && \
+  sleep 5 && \
   fluxbox & \
+  sleep 5 && \
   x11vnc -display :0 -rfbport 5900 -forever -shared -passwd "$VNC_PASSWORD" -xkb -bg && \
   websockify --web=/noVNC 6080 localhost:5900 & \
-  DISPLAY=:0 python main.py \
+  sleep 5 && \
+  echo "✅ Virtual display ready! Launching game..." && \
+  while true; do \
+    DISPLAY=:0 SDL_AUDIODRIVER=dummy SDL_VIDEODRIVER=x11 python main.py || true; \
+    echo "⚠️ Game exited — restarting in 5s..."; \
+    sleep 5; \
+  done \
 '
